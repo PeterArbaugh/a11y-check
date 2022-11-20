@@ -7,7 +7,7 @@ Please note that automated testing will only pick up 20% - 60% of accessibility 
 ## Setup
 
 1. Install Python. The script was built and tested in Python 3.8.2.
-2. Use pip to install required Python packages: `pip install selenium axe_selenium_python`
+2. Use pip to install required Python packages: `pip install selenium axe_selenium_python pyairtable python_dotenv`
 3. [Install ChromeDriver.](https://github.com/SeleniumHQ/selenium/wiki/ChromeDriver) Selenium requires ChromeDriver as a bridge between the browser and Selenium.
 4. Download the a11y_check.py script.
 
