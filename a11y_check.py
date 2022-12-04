@@ -4,35 +4,30 @@ import csv
 import sys
 import os
 from dotenv import load_dotenv
-from pyairtable import Table
+#from pyairtable import Table
+from pyairtable import Base, Table
 import datetime
+import json
 
 # Load Airtable API key
 load_dotenv()
 api_key = os.getenv('AIRTABLE_API_KEY')
 
 # Connect to Airtable Base
-table = Table(api_key, 'appAVJZA9TfkNWn6c', 'tblSuFRNSTZDzR68d')
+base = Base(api_key, 'appAVJZA9TfkNWn6c')
+issues_table = base.get_table('All issues')
+pages_table = base.get_table('Pages')
 
-
-# Get filename from args and check format is correct
-# if str(sys.argv[1]).endswith('.csv'):
-#     filename = str(sys.argv[1])
-# else:
-#     filename = str(sys.argv[1]) + '.csv'
-
-# Make a list of URLs
+# Make a list of URLs from the Pages table
 url_list = []
-for arg in sys.argv[1:]:
-    url_list.append(str(arg))
+for page in pages_table.all():
+    url_list.append(page['fields']['URL'])
+
 
 print('Checking ' + str(len(url_list)) +
       ' URLs for accessibility issues with aXe...')
 
 # Create and/or open the file to run the a11y check
-# Arguments: filename for the csv, list of urls to check
-
-
 def a11y_check(urls):
 
     # Define count for feedback to user
@@ -53,7 +48,7 @@ def a11y_check(urls):
                 # Iterate through each instance of a violation and write to CSV.
                 # This creates a new row for each instance of violation.
                 for n in range(len(v['nodes'])):
-                    table.create({
+                    issues_table.create({
                         'url': url,
                         'description': v['description'],
                         'help': v['help'],
