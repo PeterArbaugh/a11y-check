@@ -51,6 +51,16 @@ for record in prop_records:
             continue
 print(url_list)
 
+# Create a scan record on the scan table
+# Link the property(s)
+current = scans_table.create({
+    'Property': prop_records
+})
+
+# Get the scan ID to associate with new issues
+current_scan = []
+current_scan.append(current['id']) # Airtable needs an array
+
 print('Checking ' + str(len(url_list)) +
       ' URLs for accessibility issues with aXe...')
 
@@ -86,7 +96,8 @@ def a11y_check(urls):
                         'html': v['nodes'][n]['html'],
                         'selector': str(v['nodes'][n]['target']).strip("''[]"),
                         'tags': str(v['tags']).strip("''[]"),
-                        'timestamp': timestamp
+                        'timestamp': timestamp,
+                        'Scans': current_scan
                     })
     print('Check complete. All results saved.')
 
