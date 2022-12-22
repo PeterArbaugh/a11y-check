@@ -5,6 +5,7 @@ import sys
 import os
 from dotenv import load_dotenv
 from pyairtable import Base, Table
+from pyairtable.formulas import match
 import datetime
 import json
 
@@ -35,13 +36,12 @@ for prop in prop_list:
                 print(item['id'])
         except KeyError:
             continue
-print(prop_records)
+#print(prop_records)
 
 # Make a list of URLs from the Pages table that matches property id
 url_list = []
 for record in prop_records:
     for page in pages_table.all():
-        print(page)
         try:
             if record in page['fields']['Property']:
                 url_list.append(page['fields']['URL'])
@@ -49,7 +49,6 @@ for record in prop_records:
                 continue
         except KeyError:
             continue
-print(url_list)
 
 # Create a scan record on the scan table
 # Link the property(s)
@@ -99,6 +98,7 @@ def a11y_check(urls):
                         'timestamp': timestamp,
                         'Scans': current_scan
                     })
+    check_duplicates(current)
     print('Check complete. All results saved.')
 
 
@@ -115,6 +115,33 @@ def audit_url(site_url):
     driver.close()
     return results
 
+# Input a scan record and check for duplicates
+# Checks previous scans and marks newer records duplicate
+def check_duplicates(scan):
+    current_id = scan['id']
+    # Return a list of record IDs from that scan
+    new_issues = scans_table.get(current_id)['fields']['Issues created']
+    # Loop through new issues 
+    for issue in new_issues:
+        # For each new issue, query the db for issues in the same property created earlier
+        i_data = issues_table.get(issue)
+        i_url = i_data['fields']['url']
+        i_wcag = i_data['fields']['wcag_id']
+        i_selector = i_data['fields']['selector']
+        # TO DO ideally, this formula is updated to NOT return the current scan items
+        # For now, just checking after as each record is returned
+        formula = match({"url": i_url, "wcag_id": i_wcag, "selector": i_selector})
+        first_issue = issues_table.first(formula=formula)
+        if current_id in first_issue['fields']['Scans']:
+            continue
+        else:
+            # If matching issues exist, update the new issue with duplicate =1
+            # Add the first issue id as first occurrence
+            # We get the cross reference free in AT
+            issues_table.update(issue, {'Duplicate': True, 'First occurrence': [first_issue['id']]})
+            print(i_data['id'] + " duplicated by " + first_issue['id'])
+    
 
 # Run the checks
 a11y_check(url_list)
+
