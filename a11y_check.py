@@ -4,7 +4,6 @@ import csv
 import sys
 import os
 from dotenv import load_dotenv
-#from pyairtable import Table
 from pyairtable import Base, Table
 import datetime
 import json
@@ -17,12 +16,40 @@ api_key = os.getenv('AIRTABLE_API_KEY')
 base = Base(api_key, 'appAVJZA9TfkNWn6c')
 issues_table = base.get_table('All issues')
 pages_table = base.get_table('Pages')
+properties_table = base.get_table('Properties')
+scans_table = base.get_table('Scans')
 
-# Make a list of URLs from the Pages table
+# Make a list of properties to check
+prop_list = []
+for arg in sys.argv[1:]:
+    prop_list.append(str(arg))
+
+# Lookup each property and retrieve record ID
+prop_records = []
+# print(properties_table.all())
+for prop in prop_list:
+    for item in properties_table.all():
+        try:
+            if item['fields']['Name'] == prop:
+                prop_records.append(item['id'])
+                print(item['id'])
+        except KeyError:
+            continue
+print(prop_records)
+
+# Make a list of URLs from the Pages table that matches property id
 url_list = []
-for page in pages_table.all():
-    url_list.append(page['fields']['URL'])
-
+for record in prop_records:
+    for page in pages_table.all():
+        print(page)
+        try:
+            if record in page['fields']['Property']:
+                url_list.append(page['fields']['URL'])
+            else:
+                continue
+        except KeyError:
+            continue
+print(url_list)
 
 print('Checking ' + str(len(url_list)) +
       ' URLs for accessibility issues with aXe...')
