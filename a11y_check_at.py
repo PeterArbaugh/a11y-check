@@ -27,16 +27,13 @@ for arg in sys.argv[1:]:
 
 # Lookup each property and retrieve record ID
 prop_records = []
-# print(properties_table.all())
 for prop in prop_list:
     for item in properties_table.all():
         try:
             if item['fields']['Name'] == prop:
                 prop_records.append(item['id'])
-                print(item['id'])
         except KeyError:
             continue
-#print(prop_records)
 
 # Make a list of URLs from the Pages table that matches property id
 url_list = []
@@ -96,11 +93,14 @@ def a11y_check(urls):
                         'selector': str(v['nodes'][n]['target']).strip("''[]"),
                         'tags': str(v['tags']).strip("''[]"),
                         'timestamp': timestamp,
-                        'Scans': current_scan
+                        'Scans': current_scan,
+                        # Need to write to these fields or they won't be returned on later queries
+                        # 'Duplicate': False,
+                        # 'Global': False
                     })
+    check_global(current_scan)
     check_duplicates(current)
     print('Check complete. All results saved.')
-
 
 def audit_url(site_url):
     driver = webdriver.Chrome()
@@ -115,6 +115,46 @@ def audit_url(site_url):
     driver.close()
     return results
 
+def check_global(scan):
+    # Get the string that appears in the linked scan record on the issue
+    # Current scan ID is held in a list for airtable reasons above
+    # Should be the only item in that list
+    scan_record = scans_table.get(scan[0])
+    scan_string = scan_record['fields']['ID']
+    formula = match({"Scans": scan_string})
+    scan_issues = issues_table.all(formula=formula)
+    for i in scan_issues:
+        i_id = i['id']
+        i_wcag = i['fields']['wcag_id']
+        i_selector = i['fields']['selector']
+        for s in scan_issues:
+            if s['id'] == i_id:
+                continue
+            else:
+                # Currently marks matching issues as global
+                # TO DO: Make this more efficient and skip items that are already marked global
+                if i_wcag == s['fields']['wcag_id'] and i_selector == s['fields']['selector']:
+                    issues_table.batch_update([
+                        {
+                            "id": i_id,
+                            "fields":
+                            {
+                                "Global": True
+                            }
+                        },
+                        {
+                            "id": s['id'],
+                            "fields":
+                            {
+                                "Global": True
+                            }
+                        }
+                    ])
+                    print(i_id + "marked as global")
+                    print(s['id'] + "marked as global")
+                else:
+                    continue
+            
 # Input a scan record and check for duplicates
 # Checks previous scans and marks newer records duplicate
 def check_duplicates(scan):
@@ -132,15 +172,19 @@ def check_duplicates(scan):
         # For now, just checking after as each record is returned
         formula = match({"url": i_url, "wcag_id": i_wcag, "selector": i_selector})
         first_issue = issues_table.first(formula=formula)
-        if current_id in first_issue['fields']['Scans']:
+        # Unresolved issue where a scan has an empty reference to an issue record
+        # Currently excepting typerrors here to avoid
+        try:
+            if current_id in first_issue['fields']['Scans']:
+                continue
+            else:
+                # If matching issues exist, update the new issue with duplicate =1
+                # Add the first issue id as first occurrence
+                # We get the cross reference free in AT
+                issues_table.update(issue, {'Duplicate': True, 'First occurrence': [first_issue['id']]})
+                print(i_data['id'] + " duplicated by " + first_issue['id'])
+        except TypeError:
             continue
-        else:
-            # If matching issues exist, update the new issue with duplicate =1
-            # Add the first issue id as first occurrence
-            # We get the cross reference free in AT
-            issues_table.update(issue, {'Duplicate': True, 'First occurrence': [first_issue['id']]})
-            print(i_data['id'] + " duplicated by " + first_issue['id'])
-    
-
+        
 # Run the checks
 a11y_check(url_list)
